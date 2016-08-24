@@ -6,9 +6,10 @@ Introduction
 
 Suppose there are N OSD nodes with 1 SSD and 1 HDD, and a replicated pool
 with the number of copies being 3. We'd like to store one copy on an SSD
-(to improve the read performance), and two others -- on HDDs. Also all
-copies should reside on different hosts to avoid service interruption
-(and/or data loss) if one of the nodes goes down (gets broken).
+and two others -- on HDDs. The idea is to have reads served by SSDs so
+clients can get faster reads. Also all copies should reside on different
+hosts to avoid service interruption (data loss) if one of the nodes goes
+down (gets broken).
 
 It's easy to implement SSD-only and HDD-only pools: basically one moves SSD
 and HDD backed OSDs to different roots. That is, if the initial hierarchy is::
@@ -20,10 +21,27 @@ the reordered one is::
   ssd_root <- ssd_host_n <- [SSD_n]
   hdd_root <- hdd_host_n <- [HDD_n, HDD_{n+1}]
 
+(see mixing_hdd_ssd_ for more details).
 However some failure domain information has been lost while reordering
 the hierarchy: nothing says that "SSD X and HDD Y reside on the same host"
 any more, so nothing prevents CRUSH from putting 2 copies of data to
 the same host.
+
+.. _mixing_hdd_ssd: https://www.sebastien-han.fr/blog/2014/08/25/ceph-mix-sata-and-ssd-within-the-same-box
+
+
+Limitations and alternatives
+-----------------------------
+
+* The total capacity of SSDs' should be approximately 1/2 of the total
+  HDDs' capacity (otherwise SSDs will run out of space while HDDs will
+  still have a plenty of free disk space)
+* SSD only cache pools or permanently storing the "hot" data in SSD only
+  pool(s) will likely give a better result without the above constraint
+
+In other words this document is useful mostly as an example of a non-trivial
+CRUSH map.
+
 
 Thinking outside of the box
 ---------------------------
@@ -258,7 +276,7 @@ Here it is::
                 step take ssdhdd
                 step choose firstn 1 type cell
                 step choose firstn 2 type disktype
-                step chooseleaf firstn 2 type host
+                step chooseleaf firstn -1 type host
                 step emit
         }
 
